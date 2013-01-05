@@ -4,6 +4,7 @@ import argparse
 import ast
 from itertools import count
 import os
+import re
 import requests
 import subprocess
 import time
@@ -11,10 +12,10 @@ import time
 PYTHON_API_PATH = 'api/python'
 INTERVAL = 30
 
-# Ignore when these jobs are building -- for jobs that run periodically and
-# often
+# Ignore the 'anime' colors for these jobs -- for jobs that run periodically
+# and often
 JOBS_TO_IGNORE_ANIME = [
-
+    r'cron.*'
 ]
 
 # Ignore these jobs completely -- for jobs that are known to be broken
@@ -40,10 +41,41 @@ class Color(object):
     def __cmp__(self, other):
         return cmp(self.id, other.id)
 
+
+class Blink(object):
+    def __init__(self):
+        self.color = COLORS['off']
+        self.proc = None
+
+    @property
+    def proc_active(self):
+        return self.proc and self.proc.poll() is None
+
+    def set_color(self, color):
+        if self.color == color and self.proc_active:
+            return
+
+        self.color = color
+
+        if self.proc_active:
+            try:
+                self.proc.kill()
+            except OSError:
+                pass
+
+        args = ['blink1-tool', '--rgb']
+        args.append('%r' % color)
+        if color.animated:
+            args.extend(['--blink', str(255), '-t', '1000'])
+        print args
+        self.proc = subprocess.Popen(args)
+
 COLORS = {
     'off': Color(0, 0, 0),
     'blue': Color(0, 0, 255),
     'blue_anime': Color(0, 0, 255, animated=True),
+    'aborted': Color(200, 200, 200),
+    'aborted_anime': Color(200, 200, 200, animated=True),
     'yellow': Color(255, 255, 0),
     'yellow_anime': Color(255, 255, 0, animated=True),
     'red': Color(255, 0, 0),
@@ -51,28 +83,44 @@ COLORS = {
 }
 
 
-def set_color(color):
-    args = ['blink1-tool', '--rgb']
-    args.append('%r' % color)
-    if color.animated:
-        args.extend(['--blink', str(INTERVAL)])
-    print args
-    subprocess.call(args)
-
-
-def poll_loop(args):
+def poll_loop(blink, args):
     try:
         while True:
-            poll(args.host, username=args.user, password=args.password)
+            poll(blink, args.host, username=args.user, password=args.password)
             time.sleep(INTERVAL)
     except KeyboardInterrupt:
-        set_color(COLORS['off'])
+        blink.set_color(COLORS['off'])
     except Exception:
-        set_color(COLORS['off'])
+        blink.set_color(COLORS['off'])
         raise
 
 
-def poll(host, username=None, password=None):
+def list_match(job_name, job_list):
+    for pattern in job_list:
+        if re.match(pattern, job_name):
+            return True
+        elif pattern == job_name:
+            return True
+    return False
+
+
+def choose_color_for_job(job):
+    name = job['name']
+
+    if list_match(name, JOBS_TO_IGNORE):
+        return None
+
+    c = job['color']
+    if c in ['disabled', 'aborted']:
+        return None
+    if list_match(name, JOBS_TO_IGNORE_ANIME):
+        c = c.replace('_anime', '')
+
+    c = COLORS[c]
+    return c
+
+
+def poll(blink, host, username=None, password=None):
     # TODO: os is the wrong module for this
     uri = os.path.join(host, PYTHON_API_PATH)
     auth = (username, password) if (username or password) else None
@@ -83,21 +131,12 @@ def poll(host, username=None, password=None):
     # Assume everything is ok
     color = COLORS['blue']
     for job in jobs:
-        name = job['name']
-        if name in JOBS_TO_IGNORE:
-            continue
-        c = job['color']
-        if c in ['disabled', 'aborted']:
-            continue
-
-        if name in JOBS_TO_IGNORE_ANIME or name.startswith('cron'):
-            c = c.replace('_anime', '')
-        c = COLORS[c]
-
-        if c > color:
+        c = choose_color_for_job(job)
+        if c and c > color:
             color = c
+            print job['name']
 
-    set_color(color)
+    blink.set_color(color)
 
 
 def create_arg_parser():
@@ -112,6 +151,7 @@ def create_arg_parser():
 
 if __name__ == '__main__':
     arg_parser = create_arg_parser()
-    args = arg_parser.parse_args()
+    cmd_args = arg_parser.parse_args()
 
-    poll_loop(args)
+    blinker = Blink()
+    poll_loop(blinker, cmd_args)
