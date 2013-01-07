@@ -124,7 +124,11 @@ def poll(blink, host, username=None, password=None):
     # TODO: os is the wrong module for this
     uri = os.path.join(host, PYTHON_API_PATH)
     auth = (username, password) if (username or password) else None
-    resp = requests.get(uri, auth=auth, verify=False).text
+    try:
+        resp = requests.get(uri, auth=auth, verify=False, timeout=30).text
+    except requests.exceptions.ConnectionError:
+        blink.set_color(COLORS['off'])
+        return
     obj = ast.literal_eval(resp)
     jobs = obj['jobs']
 
