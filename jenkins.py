@@ -128,10 +128,15 @@ def poll(blink, host, username=None, password=None):
     auth = (username, password) if (username or password) else None
     try:
         resp = requests.get(uri, auth=auth, verify=False, timeout=30).text
-    except requests.exceptions.ConnectionError:
+    except (requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout):
         blink.set_color(COLORS['off'])
         return
-    obj = ast.literal_eval(resp)
+    try:
+        obj = ast.literal_eval(resp)
+    except SyntaxError:
+        # Fake response object
+        obj['jobs'] = []
     jobs = obj['jobs']
 
     # Assume everything is ok
