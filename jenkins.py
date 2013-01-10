@@ -76,6 +76,8 @@ COLORS = {
     'blue_anime': Color(0, 0, 255, animated=True),
     'aborted': Color(200, 200, 200),
     'aborted_anime': Color(200, 200, 200, animated=True),
+    'grey': Color(200, 200, 200),
+    'grey_anime': Color(200, 200, 200, animated=True),
     'yellow': Color(255, 255, 0),
     'yellow_anime': Color(255, 255, 0, animated=True),
     'red': Color(255, 0, 0),
