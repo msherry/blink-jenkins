@@ -136,7 +136,9 @@ def poll(blink, host, username=None, password=None):
         obj = ast.literal_eval(resp)
     except SyntaxError:
         # Fake response object
-        obj['jobs'] = []
+        obj = {
+            'jobs': [],
+        }
     jobs = obj['jobs']
 
     # Assume everything is ok
