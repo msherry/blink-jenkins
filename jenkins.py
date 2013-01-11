@@ -113,7 +113,7 @@ def choose_color_for_job(job):
         return None
 
     c = job['color']
-    if c in ['disabled', 'aborted']:
+    if c in ['disabled', 'aborted', 'grey']:
         return None
     if list_match(name, JOBS_TO_IGNORE_ANIME):
         c = c.replace('_anime', '')
